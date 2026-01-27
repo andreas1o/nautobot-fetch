@@ -1,0 +1,82 @@
+query {
+  device_list(filters: {tag: ["avd"], status: "active"}) {
+    name
+    status
+    device_type {
+      model
+    }
+    role {
+      name
+    }
+    tags {
+      name
+    }
+    rack {
+      name
+    }
+    primary_ip4 {
+      address
+    }
+    custom_field_data
+    site {
+      name
+    }
+    virtual_chassis {
+      id
+    }
+    interfaces {
+      name
+      description
+      member_interfaces {
+        name
+        device {
+          name
+        }
+      }
+      untagged_vlan {
+        vid
+      }
+      tagged_vlans {
+        vid
+      }
+      custom_field_data
+      mode
+      lag {
+        name
+      }
+      mtu
+      type
+      enabled
+      ip_addresses {
+        address
+        vrf {
+          name
+        }
+      }
+      cable {
+        id
+        a_terminations {
+          ... on InterfaceType {
+            name
+            device {
+              name
+              custom_field_data
+            }
+          }
+        }
+        b_terminations {
+          ... on InterfaceType {
+            name
+            device {
+              name
+              custom_field_data
+            }
+          }
+        }
+      }
+      tags {
+        slug
+      }
+    }
+  }
+}

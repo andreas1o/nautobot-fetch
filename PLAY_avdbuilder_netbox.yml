@@ -1,0 +1,44 @@
+---
+# AVD Builder Playbook for NetBox
+# This playbook fetches data from NetBox and generates AVD-compatible YAML files
+#
+# Usage:
+#   ansible-playbook -i inventory_netbox.yml PLAY_avdbuilder_netbox.yml
+#
+# Prerequisites:
+#   - Configure NetBox URL and API token in inventory_netbox.yml
+#   - Ensure custom fields and tags match expected schema (see NETBOX_MIGRATION.md)
+
+- name: Fetch data from NetBox
+  hosts: netbox
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run netbox-sync role
+      import_role:
+        name: netbox-sync
+      tags:
+        - always
+
+- name: Build AVD configuration files
+  hosts: netbox
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run avdbuilder role
+      import_role:
+        name: avdbuilder
+      vars:
+        fabric_name: TEST-FABRIC
+        site_names: ["DC1", "DC2"]
+      tags:
+        - always
+
+    - name: Copy output to group_vars
+      copy:
+        src: "{{ item }}"
+        dest: "group_vars/"
+        mode: 0600
+      with_fileglob:
+        - "avdbuilder_vars/*"
+      delegate_to: localhost

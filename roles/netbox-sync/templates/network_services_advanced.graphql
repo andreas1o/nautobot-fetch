@@ -1,0 +1,80 @@
+query {
+  tenant_list(filters: {tag: ["avd"]}) {
+    name
+    custom_field_data
+    l2vlans: vlans(filters: {tag: ["avd"], status: "active"}) {
+      name
+      vid
+      status
+      tags {
+        name
+      }
+      site {
+        name
+      }
+      prefixes {
+        prefix
+        vrf {
+          name
+          tags {
+            name
+          }
+        }
+      }
+    }
+    vrfs(filters: {tag: ["avd"]}) {
+      ip_addresses(filters: {status: "active"}) {
+        role
+        address
+        custom_field_data
+        assigned_object {
+          ... on InterfaceType {
+            custom_field_data
+            name
+            description
+            device {
+              name
+              custom_field_data
+              role {
+                name
+              }
+              site {
+                name
+              }
+            }
+          }
+        }
+      }
+      custom_field_data
+      name
+      tags {
+        name
+      }
+      rd
+      svis: prefixes(filters: {tag: ["avd"], status: "active"}) {
+        prefix
+        custom_field_data
+        description
+        status
+        role {
+          name
+        }
+        vlan {
+          custom_field_data
+          name
+          status
+          site {
+            name
+          }
+          vid
+          role {
+            name
+          }
+          tags {
+            name
+          }
+        }
+      }
+    }
+  }
+}

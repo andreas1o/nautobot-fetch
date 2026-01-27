@@ -1,0 +1,9 @@
+query {
+  device_list(filters: {tag: ["avd"]}) {
+    name
+    custom_field_data
+    site {
+      name
+    }
+  }
+}

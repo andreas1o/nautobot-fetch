@@ -1,0 +1,10 @@
+---
+# defaults file for netbox-sync
+# NetBox API URL (include protocol, e.g., https://netbox.example.com)
+# netbox_url: "https://netbox.example.com"
+
+# NetBox API Token (should be set in inventory or vault)
+# netbox_api_token: ""
+
+# Validate SSL certificates (set to false for self-signed certs)
+netbox_validate_certs: true

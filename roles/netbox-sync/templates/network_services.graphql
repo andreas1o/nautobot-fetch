@@ -1,0 +1,80 @@
+query {
+  tenant_list(filters: {tag: ["avd"]}) {
+    name
+    custom_field_data
+    vlans {
+      status
+      name
+      vid
+      tags {
+        name
+      }
+      site {
+        name
+      }
+      prefixes {
+        prefix
+        vrf {
+          name
+          tags {
+            name
+          }
+        }
+      }
+    }
+    vrfs {
+      ip_addresses {
+        role
+        address
+        custom_field_data
+        assigned_object {
+          ... on InterfaceType {
+            custom_field_data
+            name
+            description
+            device {
+              name
+              custom_field_data
+              role {
+                name
+              }
+              site {
+                name
+              }
+            }
+          }
+        }
+      }
+      custom_field_data
+      name
+      tags {
+        name
+      }
+      rd
+      prefixes {
+        status
+        prefix
+        custom_field_data
+        description
+        role {
+          name
+        }
+        vlan {
+          custom_field_data
+          name
+          site {
+            name
+          }
+          vid
+          status
+          role {
+            name
+          }
+          tags {
+            name
+          }
+        }
+      }
+    }
+  }
+}
