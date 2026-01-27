@@ -1,0 +1,16 @@
+query {
+  device_list(filters: {role: "spine", tag: ["avd"], status: "active"}) {
+    name
+    status
+    device_type {
+      model
+    }
+    custom_field_data
+    primary_ip4 {
+      address
+    }
+    site {
+      name
+    }
+  }
+}

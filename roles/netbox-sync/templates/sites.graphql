@@ -1,0 +1,11 @@
+query {
+  site_list {
+    name
+    asns {
+      asn
+    }
+    tags {
+      name
+    }
+  }
+}

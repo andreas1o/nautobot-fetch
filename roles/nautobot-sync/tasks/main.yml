@@ -1,0 +1,187 @@
+---
+######### Retrieve MLAG Pairs from Nautobot ###############
+- name: Get nautobot mlag pairs
+  uri:
+    url: "http://{{ ansible_host }}:{{ nautobot_api_port }}/api/graphql/"
+    validate_certs: no
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/nautobot-sync/templates/mlag_pairs.graphql") }}'
+  register: nautobot_mlag_pairs_query
+  run_once: true
+  tags:
+    - always
+
+- name: Set mlag_pairs fact
+  set_fact:
+    nb_mlag_pairs: "{{ nautobot_mlag_pairs_query.json.data }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+######### Retrieve subleaf MLAG Pairs from Nautobot ###############
+- name: Get nautobot subleaf mlag pairs
+  uri:
+    url: "http://{{ ansible_host }}:{{ nautobot_api_port }}/api/graphql/"
+    validate_certs: no
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/nautobot-sync/templates/mlag_pairs_subleafs.graphql") }}'
+  register: nautobot_subleaf_mlag_pairs_query
+  run_once: true
+  tags:
+    - always
+
+- name: Set subleaf_mlag_pairs fact
+  set_fact:
+    nb_subleaf_mlag_pairs: "{{ nautobot_subleaf_mlag_pairs_query.json.data }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+######### Retrieve Standalone Leafs from Nautobot #########
+- name: Get nautobot standalone leafs
+  uri:
+    url: "http://{{ ansible_host }}:{{ nautobot_api_port }}/api/graphql/"
+    validate_certs: no
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/nautobot-sync/templates/standalone_leafs.graphql") }}'
+  register: nautobot_standalone_leafs_query
+  run_once: true
+  tags:
+    - always
+
+- name: Set standalone leafs fact
+  set_fact:
+    nb_standalone_leafs: "{{ nautobot_standalone_leafs_query.json.data }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve Spines from Nautobot ###################
+- name: Get nautobot spines
+  uri:
+    url: "http://{{ ansible_host }}:{{ nautobot_api_port }}/api/graphql/"
+    validate_certs: no
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/nautobot-sync/templates/spines.graphql") }}'
+  register: nautobot_spines_query
+  run_once: true
+  tags:
+    - always
+
+- name: Set spines fact
+  set_fact:
+    nb_spines: "{{ nautobot_spines_query.json.data }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve Sites list from Nautobot ###############
+- name: Get nautobot sites list
+  uri:
+    url: "http://{{ ansible_host }}:{{ nautobot_api_port }}/api/graphql/"
+    validate_certs: no
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/nautobot-sync/templates/sites.graphql") }}'
+  register: nautobot_sites_query
+  run_once: true
+  tags:
+    - always
+
+- name: Set sites fact
+  set_fact:
+    nb_sites: "{{ nautobot_sites_query.json.data }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve EPVN Route-servers from Nautobot #######
+- name: Get nautobot evpn route-servers list
+  uri:
+    url: "http://{{ ansible_host }}:{{ nautobot_api_port }}/api/graphql/"
+    validate_certs: no
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/nautobot-sync/templates/evpn_route_servers.graphql") }}'
+  register: nautobot_route_servers_query
+  run_once: true
+  tags:
+    - always
+
+- name: Set route_servers fact
+  set_fact:
+    nb_route_servers: "{{ nautobot_route_servers_query.json.data }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve Network Services from Nautobot #########
+- name: Get nautobot network services info
+  uri:
+    url: "http://{{ ansible_host }}:{{ nautobot_api_port }}/api/graphql/"
+    validate_certs: no
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/nautobot-sync/templates/network_services_advanced.graphql") }}'
+  register: nautobot_network_services_query
+  run_once: true
+  tags:
+    - always
+
+- name: Set network services fact
+  set_fact:
+    nb_network_services: "{{ nautobot_network_services_query.json.data }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+- name: Obtain list of config contexts from Nautobot
+  set_fact:
+    nb_config_contexts: "{{ query('networktocode.nautobot.lookup', 'config-contexts', api_endpoint='http://' ~ ansible_host ~ ':' ~ nautobot_api_port ~ '/', token=api_token) }}"
+  delegate_to: localhost
+  tags:
+    - always
+    - contexts

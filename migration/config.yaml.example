@@ -1,0 +1,76 @@
+# Nautobot to NetBox Migration Configuration
+# Copy this file to config.yaml and fill in your values
+
+nautobot:
+  url: "http://nautobot.example.com"
+  token: "your-nautobot-api-token"
+  verify_ssl: true
+
+netbox:
+  url: "https://netbox.example.com"
+  token: "your-netbox-api-token"
+  verify_ssl: true
+
+# Migration options
+migration:
+  # Dry run mode - no changes will be made to NetBox
+  dry_run: false
+
+  # Continue on errors (log and skip failed objects)
+  continue_on_error: true
+
+  # Batch size for API requests
+  batch_size: 100
+
+  # Objects to migrate (comment out to skip)
+  objects:
+    - tags
+    - custom_fields
+    - tenants
+    - regions
+    - sites
+    - manufacturers
+    - device_types
+    - device_roles
+    - platforms
+    - rack_groups
+    - racks
+    - vlan_groups
+    - vlans
+    - vrf
+    - prefixes
+    - devices
+    - interfaces
+    - ip_addresses
+    - cables
+    - virtual_chassis
+    - config_contexts
+
+  # Custom field mapping - maps Nautobot custom field names to NetBox
+  # Format: nautobot_field_name: netbox_field_name
+  custom_field_mapping:
+    bgp_asn: bgp_asn
+    device_id: device_id
+    evpn_role: evpn_role
+    ospf_enabled: ospf_enabled
+    mlag_ibgp_peering: mlag_ibgp_peering
+    mlag_ibgp_peering_vlan: mlag_ibgp_peering_vlan
+    ip_helpers: ip_helpers
+    mtu: mtu
+    vxlan_enable: vxlan_enable
+    raw_eos_cli: raw_eos_cli
+    speed: speed
+    next_hop: next_hop
+    is_default_route: is_default_route
+    base_vni: base_vni
+    route_map_in: route_map_in
+    route_map_out: route_map_out
+    bgp_password: bgp_password
+    default_originate: default_originate
+    local_as: local_as
+    bfd: bfd
+
+# Logging configuration
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  file: migration.log

@@ -1,0 +1,47 @@
+query {
+  l3leaf_mlag_pairs: virtual_chassis_list(filters: {tag: ["avd"]}) {
+    name
+    custom_field_data
+    members(filters: {status: "active", role: "l3leaf"}) {
+      name
+      device_type {
+        model
+      }
+      role {
+        name
+      }
+      rack {
+        name
+      }
+      primary_ip4 {
+        address
+      }
+      custom_field_data
+      site {
+        name
+      }
+      interfaces(filters: {tag: ["uplink"]}) {
+        name
+        cable {
+          id
+          a_terminations {
+            ... on InterfaceType {
+              name
+              device {
+                name
+              }
+            }
+          }
+          b_terminations {
+            ... on InterfaceType {
+              name
+              device {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+---
+all:
+  children:
+    NAUTOBOT:
+      hosts:
+        nautobot:
+          ansible_host: x.x.x.x
+          api_token: "***"
+    CVP:
+      hosts:
+

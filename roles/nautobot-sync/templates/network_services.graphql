@@ -1,0 +1,96 @@
+{
+  tenants(tag: "avd") {
+    name
+    mac_vrf_vni_base: cf_base_vni
+    l2vlans: vlans {
+      status {
+        name
+      }
+      name
+      vid
+      tags {
+        name
+      }
+      site {
+        name
+      }
+      prefixes {
+        prefix
+        vrf {
+          name
+          tags {
+            name
+          }
+        }
+      }
+    }
+    vrfs {
+      ip_addresses {
+        role
+        address
+        cf_is_default_route
+        interface {
+          cf_raw_eos_cli
+          cf_ospf_enabled
+          name
+          description
+          device {
+            name
+            cf_bgp_asn
+            cf_route_map_in
+            cf_route_map_out
+            cf_bgp_password
+            cf_default_originate
+            cf_local_as
+            cf_bfd
+            device_role {
+              name
+            }
+            site {
+              name
+            }
+          }
+        }
+      }
+      cf_mlag_ibgp_peering
+      cf_mlag_ibgp_peering_vlan
+      cf_ospf_enabled
+      name
+      tags {
+        name
+      }
+      vrf_vni: rd
+      svis: prefixes {
+        status {
+          name
+        }
+        prefix
+        cf_next_hop
+        description
+        role {
+          name
+        }
+        vlan {
+          cf_ospf_enabled
+          cf_ip_helpers
+          cf_mtu
+          cf_vxlan_enable
+          name
+          site {
+            name
+          }
+          vid
+          status {
+            name
+          }
+          role {
+            name
+          }
+          tags {
+            name
+          }
+        }
+      }
+    }
+  }
+}

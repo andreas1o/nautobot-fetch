@@ -1,0 +1,12 @@
+---
+all:
+  children:
+    NETBOX:
+      hosts:
+        netbox:
+          ansible_host: netbox.example.com
+          netbox_url: "https://netbox.example.com"
+          netbox_api_token: "your-api-token-here"
+          netbox_validate_certs: true
+    CVP:
+      hosts:
