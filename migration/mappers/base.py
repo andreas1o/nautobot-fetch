@@ -6,7 +6,10 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 import logging
 
-from ..lib.id_mapper import IDMapper
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from lib.id_mapper import IDMapper
 
 logger = logging.getLogger(__name__)
 

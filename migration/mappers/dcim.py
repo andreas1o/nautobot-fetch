@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional
 import logging
 
 from .base import BaseMapper
-from ..lib.id_mapper import StatusMapper, InterfaceTypeMapper
+from lib.id_mapper import StatusMapper, InterfaceTypeMapper
 
 logger = logging.getLogger(__name__)
 
