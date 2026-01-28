@@ -14,9 +14,13 @@ import argparse
 import logging
 import sys
 import yaml
+import urllib3
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
+
+# Suppress SSL warnings when verify_ssl is disabled in config
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from lib import NautobotClient, NetBoxClient, IDMapper
 from lib.id_mapper import StatusMapper
