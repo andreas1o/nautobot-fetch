@@ -11,16 +11,59 @@ This tool migrates data from Nautobot 1.6+ to NetBox 4.2.9+, maintaining compati
 - **Resume capability**: Caches ID mappings to resume interrupted migrations
 - **Error handling**: Continue on errors with detailed logging
 
-## Prerequisites
+## Quick Start
 
-- Python 3.8+
-- Access to Nautobot API (read)
-- Access to NetBox API (read/write)
+```bash
+# From the project root directory
+cd /path/to/netbox-avd-sync
+
+# Activate the virtual environment
+source venv/bin/activate
+
+# Configure migration
+cd migration
+cp config.yaml.example config.yaml
+# Edit config.yaml with your credentials
+
+# Run dry-run first
+python migrate.py --config config.yaml --dry-run
+
+# Run full migration
+python migrate.py --config config.yaml
+```
 
 ## Installation
 
+### Option 1: Use project venv (Recommended)
+
+The migration tool uses the same virtual environment as the main project:
+
+```bash
+# From project root
+cd /path/to/netbox-avd-sync
+
+# Create and activate venv (if not already done)
+python3 -m venv venv
+source venv/bin/activate
+
+# Install all dependencies
+pip install -r requirements.txt
+
+# Migration dependencies are included in main requirements.txt
+```
+
+### Option 2: Standalone installation
+
+If you want to run the migration tool separately:
+
 ```bash
 cd migration
+
+# Create dedicated venv
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -50,6 +93,14 @@ migration:
 
 ## Usage
 
+**Always activate the venv first:**
+
+```bash
+# From project root
+source venv/bin/activate
+cd migration
+```
+
 ### Full Migration
 
 ```bash
@@ -72,6 +123,18 @@ python migrate.py --config config.yaml --objects tags,sites,devices
 
 ```bash
 python migrate.py --config config.yaml --verbose
+```
+
+### Using the helper script
+
+```bash
+# Make executable (first time only)
+chmod +x run_migrate.sh
+
+# Run migration
+./run_migrate.sh --dry-run
+./run_migrate.sh
+./run_migrate.sh --objects tags,sites
 ```
 
 ## Migration Order
@@ -222,6 +285,7 @@ UNIQUE constraint failed
 
 2. **Update AVD playbook**:
    ```bash
+   source venv/bin/activate
    ansible-playbook -i inventory_netbox.yml PLAY_avdbuilder_netbox.yml
    ```
 
@@ -249,9 +313,10 @@ UNIQUE constraint failed
 ```
 migration/
 ├── migrate.py              # Main migration script
+├── run_migrate.sh          # Helper script (activates venv)
 ├── config.yaml.example     # Example configuration
 ├── requirements.txt        # Python dependencies
-├── README.md              # This file
+├── README.md               # This file
 ├── lib/
 │   ├── __init__.py
 │   ├── nautobot_client.py  # Nautobot API client
@@ -265,7 +330,3 @@ migration/
     ├── tenancy.py          # Tenancy mappers
     └── extras.py           # Custom fields, config contexts
 ```
-
-## License
-
-Same license as the parent nautobot-fetch project.
