@@ -1,98 +1,320 @@
-# Nautobot as AVD Source of Truth
+# NetBox/Nautobot AVD Sync
 
-This project is meant to provide a modeling convention for Networktocode's Nautobot application as well as ansible roles to retrieve Nautobot data and render it into a yaml data model which can be consumed by Arista's ansible.avd collection to build a l3ls EVPN-VXLAN fabric.
+Ansible-based framework for generating Arista AVD (Arista Validated Design) configuration from NetBox or Nautobot network source of truth platforms.
 
-## Modeling Conventions
+## Features
 
-The modeling conventions are described in a separate document included in this repo.
+- **Dual Platform Support**: Works with both NetBox 4.2.9+ and Nautobot 1.6+
+- **AVD Integration**: Generates YAML files compatible with Arista AVD collection (v3 and v4)
+- **Migration Tool**: Python-based tool to migrate data from Nautobot to NetBox
+- **L3LS EVPN-VXLAN**: Designed for Layer 3 Leaf-Spine EVPN-VXLAN fabric designs
 
-## Repository Contents
+## Quick Start
 
-### Ansible Roles
+### Prerequisites
 
-The included roles are described briefly here, refer to the individual role README file for more information.
+- Python 3.8+
+- Ansible 2.12+
+- Access to NetBox or Nautobot instance
 
-#### nautobot-sync
+### Installation
 
-This ansible role simply posts graphql queries to Nautobot and registers the returned results to variables so it can be used by the avdbuilder role.
+```bash
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/netbox-avd-sync.git
+cd netbox-avd-sync
 
-#### avdbuilder
+# Install Python dependencies
+pip install -r requirements.txt
 
-This ansible role uses the data fetched by nautobot-sync to render yaml files which can be used as group_vars for an AVD fabric.
-
-### Custom Filters
-
-The emil.nbavd.structure_tenants filter is included in this repository and is required for the avdbuilder role to run.
-
-## Example Playbook
-
-```yaml
----
-- hosts: nautobot
-  connection: local
-  gather_facts: false
-  tasks:
-    - name: Run nautobot-sync
-      import_role:
-        name: nautobot-sync
-
-- hosts: nautobot
-  tasks:
-    - name: Run avdbuilder
-      import_role:
-        name: avdbuilder
-      vars:
-        fabric_name: TEST-FABRIC
-        site_names: ["DC1", "DC2"]
+# Install Ansible collections
+ansible-galaxy collection install arista.avd
+ansible-galaxy collection install networktocode.nautobot  # For Nautobot
+ansible-galaxy collection install netbox.netbox           # For NetBox
 ```
 
-## Example Inventory
+### Quick Test
+
+```bash
+# For NetBox
+ansible-playbook -i inventory_netbox.yml PLAY_avdbuilder_netbox.yml --check
+
+# For Nautobot
+ansible-playbook -i inventory.yml PLAY_avdbuilder.yml --check
+```
+
+## Project Structure
+
+```
+netbox-avd-sync/
+├── roles/
+│   ├── netbox-sync/          # Fetch data from NetBox via GraphQL
+│   ├── nautobot-sync/        # Fetch data from Nautobot via GraphQL
+│   └── avdbuilder/           # Generate AVD YAML files
+│       └── templates/
+│           ├── v3/           # AVD 3.x templates
+│           └── v4/           # AVD 4.x templates
+├── migration/                 # Nautobot → NetBox migration tool
+├── ansible-emil/              # Custom Ansible filter plugins
+├── PLAY_avdbuilder_netbox.yml # Playbook for NetBox
+├── PLAY_avdbuilder.yml        # Playbook for Nautobot
+├── inventory_netbox.yml       # NetBox inventory template
+├── inventory.yml              # Nautobot inventory template
+└── host_vars/                 # Host-specific variables
+```
+
+## Installation Guide
+
+### 1. System Requirements
+
+| Component | Version |
+|-----------|---------|
+| Python | 3.8+ |
+| Ansible Core | 2.12+ |
+| NetBox | 4.2.9+ (for NetBox sync) |
+| Nautobot | 1.6+ (for Nautobot sync) |
+
+### 2. Install Python Dependencies
+
+Create a virtual environment (recommended):
+
+```bash
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+.\venv\Scripts\activate   # Windows
+```
+
+Install required packages:
+
+```bash
+pip install ansible-core>=2.12
+pip install pynautobot>=1.0.4    # For Nautobot
+pip install pynetbox>=7.0.0      # For NetBox
+pip install requests>=2.28.0
+pip install pyyaml>=6.0
+pip install jmespath
+```
+
+Or use the requirements file:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Install Ansible Collections
+
+```bash
+# Required for AVD output consumption
+ansible-galaxy collection install arista.avd
+
+# For Nautobot support
+ansible-galaxy collection install networktocode.nautobot
+
+# For NetBox support (optional, for additional features)
+ansible-galaxy collection install netbox.netbox
+```
+
+### 4. Configure Ansible
+
+The `ansible.cfg` is pre-configured, but verify these settings:
+
+```ini
+[defaults]
+collections_paths = ./ansible-emil:~/.ansible/collections
+roles_path = ./roles
+jinja2_extensions = jinja2.ext.loopcontrols,jinja2.ext.do
+```
+
+### 5. Configure Inventory
+
+#### For NetBox:
+
+Edit `inventory_netbox.yml`:
 
 ```yaml
----
+all:
+  children:
+    NETBOX:
+      hosts:
+        netbox:
+          ansible_host: netbox.example.com
+          netbox_url: "https://netbox.example.com"
+          netbox_api_token: "your-api-token-here"
+          netbox_validate_certs: true
+```
+
+#### For Nautobot:
+
+Edit `inventory.yml`:
+
+```yaml
 all:
   children:
     NAUTOBOT:
       hosts:
         nautobot:
-          ansible_host: 10.10.10.10
-          api_token: "<your api-token here>"
+          ansible_host: nautobot.example.com
+          api_token: "your-api-token-here"
 ```
 
-## Requirements and Dependencies
+### 6. Configure Host Variables
 
-### Ansible
+Edit `host_vars/nautobot.yml` (or create `host_vars/netbox.yml`):
 
-These roles have been tested with ansible-core 2.12.0.
-
-### AVD
-
-Although the roles provided in this repository are not dependent on AVD, their output is fairly useless without it. The recommendation is to install via ansible galaxy:
-
-```shell
-ansible-galaxy collection install arista.avd
+```yaml
+# Site-specific configuration
+DC1:
+  dc_defaults:
+    # Your DC defaults here
+  spine:
+    defaults:
+      # Spine defaults
+    nodes:
+      # Node-specific config
+  l3leaf:
+    defaults:
+      # L3 leaf defaults
+    node_groups:
+      # Node groups
 ```
 
-The roles are meant to work with the AVD version 3.x data model.
+## Usage
 
-### Nautobot Version
+### Generate AVD Configuration from NetBox
 
-The roles have been tested with nautobot==v1.1.2
-
-The custom fields that have been outlined in the modeling conventions doc need to be present, or the graphql queries posted by the nautobot-sync role will fail. It has been observed that sometimes a nautobot restart is required before the custom fields become available in the graphql API.
-
-### Additional Collections/Modules
-
-#### Python Packages
-
-pynautobot is required
-
-#### Ansible Collections
-
-networktocode.nautobot is required for grabbing custom configuration contexts via the API (not available through graphql API at the moment)
-
-```shell
-ansible-galaxy collection install networktocode.nautobot
+```bash
+ansible-playbook -i inventory_netbox.yml PLAY_avdbuilder_netbox.yml
 ```
 
+### Generate AVD Configuration from Nautobot
 
+```bash
+ansible-playbook -i inventory.yml PLAY_avdbuilder.yml
+```
+
+### Output
+
+Generated files are placed in `avdbuilder_vars/`:
+
+```
+avdbuilder_vars/
+├── TEST-FABRIC.yml      # Fabric-wide settings
+├── DC1.yml              # DC1 spine/leaf configuration
+├── DC1_SERVERS.yml      # DC1 server connections
+├── DC1_TENANTS.yml      # DC1 tenant services
+├── DC2.yml              # DC2 configuration
+├── DC2_SERVERS.yml
+└── DC2_TENANTS.yml
+```
+
+## Migration Tool (Nautobot → NetBox)
+
+Migrate your data from Nautobot to NetBox:
+
+### Install Migration Dependencies
+
+```bash
+cd migration
+pip install -r requirements.txt
+```
+
+### Configure Migration
+
+```bash
+cp config.yaml.example config.yaml
+# Edit config.yaml with your credentials
+```
+
+### Run Migration
+
+```bash
+# Dry run first
+python migrate.py --config config.yaml --dry-run
+
+# Full migration
+python migrate.py --config config.yaml
+
+# Migrate specific objects
+python migrate.py --config config.yaml --objects tags,sites,devices
+```
+
+See `migration/README.md` for detailed migration documentation.
+
+## Platform Setup Requirements
+
+### Required Custom Fields
+
+Create these custom fields in NetBox/Nautobot:
+
+| Field Name | Type | Object Types | Description |
+|------------|------|--------------|-------------|
+| `bgp_asn` | Text | Device | BGP AS number |
+| `device_id` | Integer | Device | Device ID (1-254) |
+| `evpn_role` | Selection | Device | `client`, `server`, `none` |
+| `ospf_enabled` | Boolean | VRF, VLAN | Enable OSPF |
+| `mlag_ibgp_peering` | Boolean | VRF | Enable MLAG iBGP |
+| `base_vni` | Integer | Tenant | MAC VRF VNI base |
+| `ip_helpers` | Text | VLAN | Comma-separated IPs |
+| `vxlan_enable` | Boolean | VLAN | Enable VXLAN |
+
+### Required Tags
+
+- `avd` - Mark objects for AVD processing (required)
+- `uplink` - Mark uplink interfaces
+- `peerlink` - Mark MLAG peer-link interfaces
+
+### Required Device Roles
+
+- `spine` - Spine switches
+- `l3leaf` - Layer 3 leaf switches
+- `l2leaf` - Layer 2 leaf switches
+- `bgp_peer` - External BGP peer devices
+
+## Troubleshooting
+
+### Connection Issues
+
+```bash
+# Test NetBox connection
+curl -H "Authorization: Token YOUR_TOKEN" https://netbox.example.com/api/
+
+# Test Nautobot connection
+curl -H "Authorization: Token YOUR_TOKEN" http://nautobot.example.com/api/
+```
+
+### GraphQL Errors
+
+Ensure all required custom fields exist. NetBox/Nautobot may need a restart after creating custom fields.
+
+### Missing Custom Fields
+
+```bash
+# Check custom fields in NetBox
+curl -H "Authorization: Token YOUR_TOKEN" https://netbox.example.com/api/extras/custom-fields/
+```
+
+### Ansible Errors
+
+```bash
+# Verbose output
+ansible-playbook -i inventory_netbox.yml PLAY_avdbuilder_netbox.yml -vvv
+
+# Check syntax
+ansible-playbook --syntax-check PLAY_avdbuilder_netbox.yml
+```
+
+## Modeling Conventions
+
+See `Nautobot Modelling Conventions.md` for detailed data modeling requirements.
+
+## License
+
+MIT License
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
