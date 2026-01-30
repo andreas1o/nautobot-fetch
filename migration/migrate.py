@@ -98,6 +98,9 @@ class MigrationRunner:
         # Initialize ID mapper
         self.id_mapper = IDMapper(cache_file='id_mapping.json')
 
+        # Track valid custom fields in NetBox (populated during custom_fields migration)
+        self.valid_custom_fields = set()
+
         # Statistics
         self.stats = {
             'created': {},
@@ -207,6 +210,9 @@ class MigrationRunner:
         # Get existing custom fields in NetBox
         existing_cfs = {cf['name']: cf for cf in self.netbox.get_custom_fields()}
 
+        # Track existing custom fields as valid
+        self.valid_custom_fields.update(existing_cfs.keys())
+
         # Get existing choice sets in NetBox
         existing_choice_sets = {}
         try:
@@ -247,6 +253,7 @@ class MigrationRunner:
                 name = nb_cf.get('name')
                 if name in existing_cfs:
                     self.id_mapper.add('custom_field', nb_cf['id'], existing_cfs[name]['id'])
+                    self.valid_custom_fields.add(name)
                     skipped += 1
                     continue
 
@@ -254,6 +261,7 @@ class MigrationRunner:
                 result = self.netbox.create_custom_field(data)
                 if result:
                     mapper.register_mapping(nb_cf['id'], result['id'])
+                    self.valid_custom_fields.add(name)
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate custom field {nb_cf.get('name')}: {e}")
@@ -261,6 +269,7 @@ class MigrationRunner:
                 if not self.continue_on_error:
                     raise
 
+        logger.info(f"Valid custom fields in NetBox: {self.valid_custom_fields}")
         self._update_stats('custom_fields', created, skipped, failed)
 
     def _migrate_tenant_groups(self):
@@ -287,7 +296,7 @@ class MigrationRunner:
 
     def _migrate_tenants(self):
         """Migrate tenants."""
-        mapper = TenantMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = TenantMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_tenants = self.nautobot.get_tenants()
 
         existing_tenants = {t['slug']: t for t in self.netbox.get_tenants()}
@@ -344,7 +353,7 @@ class MigrationRunner:
 
     def _migrate_sites(self):
         """Migrate sites."""
-        mapper = SiteMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = SiteMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_sites = self.nautobot.get_sites()
 
         existing_sites = {s['slug']: s for s in self.netbox.get_sites()}
@@ -598,7 +607,7 @@ class MigrationRunner:
 
     def _migrate_vlans(self):
         """Migrate VLANs."""
-        mapper = VLANMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = VLANMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_vlans = self.nautobot.get_vlans()
 
         created, skipped, failed = 0, 0, 0
@@ -617,7 +626,7 @@ class MigrationRunner:
 
     def _migrate_prefixes(self):
         """Migrate prefixes."""
-        mapper = PrefixMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = PrefixMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_prefixes = self.nautobot.get_prefixes()
 
         created, skipped, failed = 0, 0, 0
@@ -640,7 +649,7 @@ class MigrationRunner:
 
     def _migrate_devices(self):
         """Migrate devices."""
-        mapper = DeviceMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = DeviceMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_devices = self.nautobot.get_devices()
 
         existing_devices = {d['name']: d for d in self.netbox.get_devices()}
@@ -667,7 +676,7 @@ class MigrationRunner:
 
     def _migrate_interfaces(self):
         """Migrate interfaces."""
-        mapper = InterfaceMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = InterfaceMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_interfaces = self.nautobot.get_interfaces()
 
         # Build lookup of existing interfaces in NetBox (device_id, name) -> interface
@@ -690,14 +699,19 @@ class MigrationRunner:
                 nautobot_device_id = nb_device.get('id') if isinstance(nb_device, dict) else nb_device
                 netbox_device_id = self.id_mapper.get_netbox_id('device', nautobot_device_id)
 
-                if netbox_device_id:
-                    # Check if interface already exists
-                    key = (netbox_device_id, nb_iface.get('name'))
-                    if key in existing_interfaces:
-                        existing_iface = existing_interfaces[key]
-                        self.id_mapper.add('interface', nb_iface['id'], existing_iface['id'])
-                        skipped += 1
-                        return
+                # Skip if device doesn't exist in NetBox
+                if not netbox_device_id:
+                    logger.debug(f"Skipping interface {nb_iface.get('name')} - device not migrated")
+                    skipped += 1
+                    return
+
+                # Check if interface already exists
+                key = (netbox_device_id, nb_iface.get('name'))
+                if key in existing_interfaces:
+                    existing_iface = existing_interfaces[key]
+                    self.id_mapper.add('interface', nb_iface['id'], existing_iface['id'])
+                    skipped += 1
+                    return
 
                 data = mapper.transform(nb_iface)
                 result = self.netbox.create_interface(data)
@@ -722,12 +736,35 @@ class MigrationRunner:
 
     def _migrate_ip_addresses(self):
         """Migrate IP addresses."""
-        mapper = IPAddressMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = IPAddressMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_ips = self.nautobot.get_ip_addresses()
+
+        # Build lookup of existing IP addresses in NetBox
+        # Key is (address, vrf_id) - vrf_id is None for global table
+        existing_ips = {}
+        for ip in self.netbox.get_ip_addresses():
+            addr = ip.get('address')
+            vrf = ip.get('vrf')
+            vrf_id = vrf.get('id') if isinstance(vrf, dict) and vrf else None
+            key = (addr, vrf_id)
+            existing_ips[key] = ip
 
         created, skipped, failed = 0, 0, 0
         for nb_ip in nautobot_ips:
             try:
+                # Check if IP already exists in NetBox
+                addr = nb_ip.get('address')
+                nb_vrf = nb_ip.get('vrf', {})
+                nautobot_vrf_id = nb_vrf.get('id') if isinstance(nb_vrf, dict) and nb_vrf else None
+                netbox_vrf_id = self.id_mapper.get_netbox_id('vrf', nautobot_vrf_id) if nautobot_vrf_id else None
+
+                key = (addr, netbox_vrf_id)
+                if key in existing_ips:
+                    existing_ip = existing_ips[key]
+                    self.id_mapper.add('ip_address', nb_ip['id'], existing_ip['id'])
+                    skipped += 1
+                    continue
+
                 data = mapper.transform(nb_ip)
                 if not data:
                     skipped += 1
@@ -769,7 +806,7 @@ class MigrationRunner:
 
     def _migrate_virtual_chassis(self):
         """Migrate virtual chassis."""
-        mapper = VirtualChassisMapper(self.id_mapper, self.custom_field_mapping)
+        mapper = VirtualChassisMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
         nautobot_vcs = self.nautobot.get_virtual_chassis()
 
         created, skipped, failed = 0, 0, 0
