@@ -216,7 +216,12 @@ class RackMapper(BaseMapper):
         if nautobot_obj.get('u_height'):
             data['u_height'] = nautobot_obj['u_height']
         if nautobot_obj.get('width'):
-            data['width'] = nautobot_obj['width']
+            width = nautobot_obj['width']
+            # Nautobot returns width as {'value': 19, 'label': '19 inches'}, NetBox wants just 19
+            if isinstance(width, dict):
+                data['width'] = width.get('value', 19)
+            else:
+                data['width'] = width
         if nautobot_obj.get('serial'):
             data['serial'] = nautobot_obj['serial']
         if nautobot_obj.get('comments'):
