@@ -670,25 +670,35 @@ class MigrationRunner:
         mapper = InterfaceMapper(self.id_mapper, self.custom_field_mapping)
         nautobot_interfaces = self.nautobot.get_interfaces()
 
+        # Build lookup of existing interfaces in NetBox (device_id, name) -> interface
+        existing_interfaces = {}
+        for iface in self.netbox.get_interfaces():
+            device = iface.get('device')
+            if device:
+                device_id = device.get('id') if isinstance(device, dict) else device
+                key = (device_id, iface.get('name'))
+                existing_interfaces[key] = iface
+
         created, skipped, failed = 0, 0, 0
 
-        # First pass: Create LAG interfaces
-        lag_interfaces = [i for i in nautobot_interfaces if i.get('type', {}).get('value') == 'lag']
-        for nb_iface in lag_interfaces:
+        def process_interface(nb_iface):
+            """Process a single interface, returning (created, skipped, failed) counts."""
+            nonlocal created, skipped, failed
             try:
-                data = mapper.transform(nb_iface)
-                result = self.netbox.create_interface(data)
-                if result:
-                    mapper.register_mapping(nb_iface['id'], result['id'])
-                    created += 1
-            except Exception as e:
-                logger.error(f"Failed to migrate LAG interface {nb_iface.get('name')}: {e}")
-                failed += 1
+                # Get the NetBox device ID for this interface
+                nb_device = nb_iface.get('device', {})
+                nautobot_device_id = nb_device.get('id') if isinstance(nb_device, dict) else nb_device
+                netbox_device_id = self.id_mapper.get_netbox_id('device', nautobot_device_id)
 
-        # Second pass: Create other interfaces
-        other_interfaces = [i for i in nautobot_interfaces if i.get('type', {}).get('value') != 'lag']
-        for nb_iface in other_interfaces:
-            try:
+                if netbox_device_id:
+                    # Check if interface already exists
+                    key = (netbox_device_id, nb_iface.get('name'))
+                    if key in existing_interfaces:
+                        existing_iface = existing_interfaces[key]
+                        self.id_mapper.add('interface', nb_iface['id'], existing_iface['id'])
+                        skipped += 1
+                        return
+
                 data = mapper.transform(nb_iface)
                 result = self.netbox.create_interface(data)
                 if result:
@@ -697,6 +707,16 @@ class MigrationRunner:
             except Exception as e:
                 logger.error(f"Failed to migrate interface {nb_iface.get('name')}: {e}")
                 failed += 1
+
+        # First pass: Create LAG interfaces
+        lag_interfaces = [i for i in nautobot_interfaces if i.get('type', {}).get('value') == 'lag']
+        for nb_iface in lag_interfaces:
+            process_interface(nb_iface)
+
+        # Second pass: Create other interfaces
+        other_interfaces = [i for i in nautobot_interfaces if i.get('type', {}).get('value') != 'lag']
+        for nb_iface in other_interfaces:
+            process_interface(nb_iface)
 
         self._update_stats('interfaces', created, skipped, failed)
 
