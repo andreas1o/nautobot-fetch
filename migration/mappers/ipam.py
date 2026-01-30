@@ -43,6 +43,7 @@ class VLANMapper(BaseMapper):
     """Mapper for VLANs."""
 
     object_type = 'vlan'
+    content_type = 'ipam.vlan'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot VLAN to NetBox format."""
@@ -175,6 +176,7 @@ class PrefixMapper(BaseMapper):
     """Mapper for prefixes."""
 
     object_type = 'prefix'
+    content_type = 'ipam.prefix'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot prefix to NetBox format.
@@ -250,6 +252,7 @@ class IPAddressMapper(BaseMapper):
     """Mapper for IP addresses."""
 
     object_type = 'ip_address'
+    content_type = 'ipam.ipaddress'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot IP address to NetBox format.

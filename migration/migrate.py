@@ -98,8 +98,9 @@ class MigrationRunner:
         # Initialize ID mapper
         self.id_mapper = IDMapper(cache_file='id_mapping.json')
 
-        # Track valid custom fields in NetBox (populated during custom_fields migration)
-        self.valid_custom_fields = set()
+        # Track valid custom fields per content type in NetBox
+        # Format: {'dcim.device': {'field1', 'field2'}, 'dcim.virtualchassis': {'field1'}}
+        self.valid_custom_fields_by_type = {}
 
         # Statistics
         self.stats = {
@@ -207,11 +208,16 @@ class MigrationRunner:
         mapper = CustomFieldMapper(self.id_mapper, self.custom_field_mapping)
         nautobot_cfs = self.nautobot.get_custom_fields()
 
-        # Get existing custom fields in NetBox
-        existing_cfs = {cf['name']: cf for cf in self.netbox.get_custom_fields()}
-
-        # Track existing custom fields as valid
-        self.valid_custom_fields.update(existing_cfs.keys())
+        # Get existing custom fields in NetBox with their content types
+        existing_cfs = {}
+        for cf in self.netbox.get_custom_fields():
+            existing_cfs[cf['name']] = cf
+            # Track which content types each field applies to
+            object_types = cf.get('object_types', cf.get('content_types', []))
+            for ct in object_types:
+                if ct not in self.valid_custom_fields_by_type:
+                    self.valid_custom_fields_by_type[ct] = set()
+                self.valid_custom_fields_by_type[ct].add(cf['name'])
 
         # Get existing choice sets in NetBox
         existing_choice_sets = {}
@@ -253,7 +259,6 @@ class MigrationRunner:
                 name = nb_cf.get('name')
                 if name in existing_cfs:
                     self.id_mapper.add('custom_field', nb_cf['id'], existing_cfs[name]['id'])
-                    self.valid_custom_fields.add(name)
                     skipped += 1
                     continue
 
@@ -261,7 +266,11 @@ class MigrationRunner:
                 result = self.netbox.create_custom_field(data)
                 if result:
                     mapper.register_mapping(nb_cf['id'], result['id'])
-                    self.valid_custom_fields.add(name)
+                    # Track content types for newly created field
+                    for ct in data.get('object_types', []):
+                        if ct not in self.valid_custom_fields_by_type:
+                            self.valid_custom_fields_by_type[ct] = set()
+                        self.valid_custom_fields_by_type[ct].add(name)
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate custom field {nb_cf.get('name')}: {e}")
@@ -269,7 +278,7 @@ class MigrationRunner:
                 if not self.continue_on_error:
                     raise
 
-        logger.info(f"Valid custom fields in NetBox: {self.valid_custom_fields}")
+        logger.info(f"Valid custom fields by content type: {dict((k, len(v)) for k, v in self.valid_custom_fields_by_type.items())}")
         self._update_stats('custom_fields', created, skipped, failed)
 
     def _migrate_tenant_groups(self):
@@ -296,7 +305,7 @@ class MigrationRunner:
 
     def _migrate_tenants(self):
         """Migrate tenants."""
-        mapper = TenantMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = TenantMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_tenants = self.nautobot.get_tenants()
 
         existing_tenants = {t['slug']: t for t in self.netbox.get_tenants()}
@@ -353,7 +362,7 @@ class MigrationRunner:
 
     def _migrate_sites(self):
         """Migrate sites."""
-        mapper = SiteMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = SiteMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_sites = self.nautobot.get_sites()
 
         existing_sites = {s['slug']: s for s in self.netbox.get_sites()}
@@ -607,7 +616,7 @@ class MigrationRunner:
 
     def _migrate_vlans(self):
         """Migrate VLANs."""
-        mapper = VLANMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = VLANMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_vlans = self.nautobot.get_vlans()
 
         created, skipped, failed = 0, 0, 0
@@ -626,7 +635,7 @@ class MigrationRunner:
 
     def _migrate_prefixes(self):
         """Migrate prefixes."""
-        mapper = PrefixMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = PrefixMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_prefixes = self.nautobot.get_prefixes()
 
         created, skipped, failed = 0, 0, 0
@@ -649,7 +658,7 @@ class MigrationRunner:
 
     def _migrate_devices(self):
         """Migrate devices."""
-        mapper = DeviceMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = DeviceMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_devices = self.nautobot.get_devices()
 
         existing_devices = {d['name']: d for d in self.netbox.get_devices()}
@@ -676,7 +685,7 @@ class MigrationRunner:
 
     def _migrate_interfaces(self):
         """Migrate interfaces."""
-        mapper = InterfaceMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = InterfaceMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_interfaces = self.nautobot.get_interfaces()
 
         # Build lookup of existing interfaces in NetBox (device_id, name) -> interface
@@ -736,7 +745,7 @@ class MigrationRunner:
 
     def _migrate_ip_addresses(self):
         """Migrate IP addresses."""
-        mapper = IPAddressMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = IPAddressMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_ips = self.nautobot.get_ip_addresses()
 
         # Build lookup of existing IP addresses in NetBox
@@ -806,7 +815,7 @@ class MigrationRunner:
 
     def _migrate_virtual_chassis(self):
         """Migrate virtual chassis."""
-        mapper = VirtualChassisMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields)
+        mapper = VirtualChassisMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_vcs = self.nautobot.get_virtual_chassis()
 
         created, skipped, failed = 0, 0, 0

@@ -51,6 +51,7 @@ class SiteMapper(BaseMapper):
     """Mapper for sites."""
 
     object_type = 'site'
+    content_type = 'dcim.site'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot site to NetBox format."""
@@ -234,6 +235,7 @@ class DeviceMapper(BaseMapper):
     """Mapper for devices."""
 
     object_type = 'device'
+    content_type = 'dcim.device'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot device to NetBox format."""
@@ -312,6 +314,7 @@ class InterfaceMapper(BaseMapper):
     """Mapper for interfaces."""
 
     object_type = 'interface'
+    content_type = 'dcim.interface'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot interface to NetBox format."""
@@ -470,6 +473,7 @@ class VirtualChassisMapper(BaseMapper):
     """Mapper for virtual chassis."""
 
     object_type = 'virtual_chassis'
+    content_type = 'dcim.virtualchassis'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot virtual chassis to NetBox format."""

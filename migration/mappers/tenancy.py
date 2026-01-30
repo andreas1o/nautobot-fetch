@@ -35,6 +35,7 @@ class TenantMapper(BaseMapper):
     """Mapper for tenants."""
 
     object_type = 'tenant'
+    content_type = 'tenancy.tenant'
 
     def transform(self, nautobot_obj: Dict) -> Dict:
         """Transform a Nautobot tenant to NetBox format."""

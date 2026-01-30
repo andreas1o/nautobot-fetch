@@ -20,11 +20,14 @@ class BaseMapper(ABC):
     # Object type identifier (used for ID mapping)
     object_type: str = 'base'
 
+    # NetBox content type for this object (e.g., 'dcim.device', 'dcim.interface')
+    content_type: str = ''
+
     def __init__(self, id_mapper: IDMapper, custom_field_mapping: Optional[Dict[str, str]] = None,
-                 valid_custom_fields: Optional[set] = None):
+                 valid_custom_fields_by_type: Optional[Dict[str, set]] = None):
         self.id_mapper = id_mapper
         self.custom_field_mapping = custom_field_mapping or {}
-        self.valid_custom_fields = valid_custom_fields or set()
+        self.valid_custom_fields_by_type = valid_custom_fields_by_type or {}
 
     @abstractmethod
     def transform(self, nautobot_obj: Dict) -> Dict:
@@ -75,19 +78,22 @@ class BaseMapper(ABC):
         Nautobot: custom_fields: {field_name: value, ...}
         NetBox: custom_fields: {field_name: value, ...}
 
-        Only includes fields that exist in NetBox (valid_custom_fields).
+        Only includes fields that exist in NetBox for this content type.
         """
         cf_data = nautobot_obj.get('custom_fields', {})
         if not cf_data:
             return {}
 
+        # Get valid fields for this content type
+        valid_fields = self.valid_custom_fields_by_type.get(self.content_type, set())
+
         netbox_cf = {}
         for nb_field, value in cf_data.items():
             # Use mapping if provided, otherwise use same name
             netbox_field = self.custom_field_mapping.get(nb_field, nb_field)
-            # Only include if the field exists in NetBox
-            if self.valid_custom_fields and netbox_field not in self.valid_custom_fields:
-                logger.debug(f"Skipping unknown custom field: {netbox_field}")
+            # Only include if the field exists in NetBox for this content type
+            if valid_fields and netbox_field not in valid_fields:
+                logger.debug(f"Skipping custom field {netbox_field} - not valid for {self.content_type}")
                 continue
             if value is not None:
                 netbox_cf[netbox_field] = value
