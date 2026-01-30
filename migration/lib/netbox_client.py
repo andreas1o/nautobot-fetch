@@ -42,7 +42,9 @@ class NetBoxClient:
             logger.error(f"Failed to create {endpoint}: {response.status_code}")
             logger.error(f"Request data: {data}")
             logger.error(f"Response: {response.text}")
-            response.raise_for_status()
+            # Include the actual error message in the exception
+            error_msg = response.text[:500] if response.text else 'No details'
+            raise Exception(f"{response.status_code}: {error_msg}")
 
         result = response.json()
         logger.debug(f"Created: {result.get('id')}")
