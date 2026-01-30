@@ -37,16 +37,16 @@ class NetBoxClient:
         url = f"{self.base_url}/api/{endpoint}/"
         logger.debug(f"POST {url}: {data}")
 
-        try:
-            response = self.session.post(url, json=data)
+        response = self.session.post(url, json=data)
+        if not response.ok:
+            logger.error(f"Failed to create {endpoint}: {response.status_code}")
+            logger.error(f"Request data: {data}")
+            logger.error(f"Response: {response.text}")
             response.raise_for_status()
-            result = response.json()
-            logger.debug(f"Created: {result.get('id')}")
-            return result
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"Failed to create {endpoint}: {e}")
-            logger.error(f"Response: {e.response.text if e.response else 'No response'}")
-            raise
+
+        result = response.json()
+        logger.debug(f"Created: {result.get('id')}")
+        return result
 
     def _post_bulk(self, endpoint: str, data: List[Dict]) -> List[Dict]:
         """Create multiple objects in bulk."""

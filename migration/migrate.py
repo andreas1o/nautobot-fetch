@@ -197,14 +197,51 @@ class MigrationRunner:
         self._update_stats('tags', created, skipped, failed)
 
     def _migrate_custom_fields(self):
-        """Migrate custom fields."""
+        """Migrate custom fields.
+
+        NetBox 4.x requires choice sets to be created BEFORE select-type custom fields.
+        """
         mapper = CustomFieldMapper(self.id_mapper, self.custom_field_mapping)
         nautobot_cfs = self.nautobot.get_custom_fields()
 
         # Get existing custom fields in NetBox
         existing_cfs = {cf['name']: cf for cf in self.netbox.get_custom_fields()}
 
+        # Get existing choice sets in NetBox
+        existing_choice_sets = {}
+        try:
+            for cs in self.netbox._get('extras/custom-field-choice-sets'):
+                existing_choice_sets[cs['name']] = cs
+        except Exception:
+            pass  # Endpoint may not exist in older versions
+
         created, skipped, failed = 0, 0, 0
+
+        # First pass: Create choice sets for select/multiselect fields
+        for nb_cf in nautobot_cfs:
+            try:
+                if not mapper.is_select_type(nb_cf):
+                    continue
+
+                choices_data = mapper.get_choices(nb_cf)
+                if not choices_data:
+                    continue
+
+                choice_set_name = choices_data['name']
+                if choice_set_name in existing_choice_sets:
+                    # Use existing choice set
+                    mapper.set_choice_set_id(nb_cf.get('name'), existing_choice_sets[choice_set_name]['id'])
+                    logger.debug(f"Using existing choice set: {choice_set_name}")
+                else:
+                    # Create new choice set
+                    result = self.netbox.create_custom_field_choice(choices_data)
+                    if result:
+                        mapper.set_choice_set_id(nb_cf.get('name'), result['id'])
+                        logger.debug(f"Created choice set: {choice_set_name} -> {result['id']}")
+            except Exception as e:
+                logger.warning(f"Failed to create choice set for {nb_cf.get('name')}: {e}")
+
+        # Second pass: Create custom fields (now with choice_set references)
         for nb_cf in nautobot_cfs:
             try:
                 name = nb_cf.get('name')
@@ -218,11 +255,6 @@ class MigrationRunner:
                 if result:
                     mapper.register_mapping(nb_cf['id'], result['id'])
                     created += 1
-
-                # Handle choices for select fields
-                choices = mapper.get_choices(nb_cf)
-                if choices:
-                    self.netbox.create_custom_field_choice(choices)
             except Exception as e:
                 logger.error(f"Failed to migrate custom field {nb_cf.get('name')}: {e}")
                 failed += 1

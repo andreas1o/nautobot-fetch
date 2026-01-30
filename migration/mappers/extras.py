@@ -45,23 +45,61 @@ class CustomFieldMapper(BaseMapper):
     }
 
     # Map Nautobot content types to NetBox
+    # Most are identical, but some differ between platforms
     CONTENT_TYPE_MAP = {
+        # DCIM
         'dcim.device': 'dcim.device',
         'dcim.interface': 'dcim.interface',
         'dcim.site': 'dcim.site',
         'dcim.rack': 'dcim.rack',
         'dcim.devicetype': 'dcim.devicetype',
+        'dcim.location': 'dcim.location',
+        'dcim.region': 'dcim.region',
+        'dcim.manufacturer': 'dcim.manufacturer',
+        'dcim.platform': 'dcim.platform',
+        'dcim.cable': 'dcim.cable',
+        'dcim.consoleport': 'dcim.consoleport',
+        'dcim.powerport': 'dcim.powerport',
+        'dcim.virtualchassis': 'dcim.virtualchassis',
+        # IPAM
         'ipam.vlan': 'ipam.vlan',
+        'ipam.vlangroup': 'ipam.vlangroup',
         'ipam.vrf': 'ipam.vrf',
         'ipam.prefix': 'ipam.prefix',
         'ipam.ipaddress': 'ipam.ipaddress',
+        'ipam.routetarget': 'ipam.routetarget',
+        # Tenancy
         'tenancy.tenant': 'tenancy.tenant',
+        'tenancy.tenantgroup': 'tenancy.tenantgroup',
+        # Virtualization
         'virtualization.virtualmachine': 'virtualization.virtualmachine',
         'virtualization.vminterface': 'virtualization.vminterface',
+        'virtualization.cluster': 'virtualization.cluster',
+        # Circuits
         'circuits.circuit': 'circuits.circuit',
+        'circuits.provider': 'circuits.provider',
+        # Extras
+        'extras.configcontext': 'extras.configcontext',
+        'extras.tag': 'extras.tag',
     }
 
-    def transform(self, nautobot_obj: Dict) -> Dict:
+    def __init__(self, id_mapper, custom_field_mapping: Dict = None):
+        super().__init__(id_mapper, custom_field_mapping)
+        # Track choice set IDs for linking to custom fields
+        self.choice_set_ids = {}
+
+    def set_choice_set_id(self, field_name: str, choice_set_id: int):
+        """Store the choice set ID for a field name."""
+        self.choice_set_ids[field_name] = choice_set_id
+
+    def is_select_type(self, nautobot_obj: Dict) -> bool:
+        """Check if this is a select/multiselect type field."""
+        cf_type = nautobot_obj.get('type', 'text')
+        if isinstance(cf_type, dict):
+            cf_type = cf_type.get('value', 'text')
+        return cf_type in ('select', 'multi-select')
+
+    def transform(self, nautobot_obj: Dict, choice_set_id: int = None) -> Dict:
         """Transform a Nautobot custom field to NetBox format."""
         # Get type
         cf_type = nautobot_obj.get('type', 'text')
@@ -78,24 +116,48 @@ class CustomFieldMapper(BaseMapper):
         }
 
         # Content types (object types this field applies to)
+        # NetBox 4.x requires at least one object_type
         content_types = nautobot_obj.get('content_types', [])
-        if content_types:
-            netbox_content_types = []
-            for ct in content_types:
-                if isinstance(ct, str):
-                    mapped = self.CONTENT_TYPE_MAP.get(ct)
-                    if mapped:
-                        netbox_content_types.append(mapped)
-                elif isinstance(ct, dict):
-                    # Handle nested format
-                    app_label = ct.get('app_label', '')
-                    model = ct.get('model', '')
-                    ct_string = f"{app_label}.{model}"
-                    mapped = self.CONTENT_TYPE_MAP.get(ct_string)
-                    if mapped:
-                        netbox_content_types.append(mapped)
-            if netbox_content_types:
-                data['object_types'] = netbox_content_types
+        netbox_content_types = []
+        unmapped_types = []
+
+        for ct in content_types:
+            ct_string = None
+            if isinstance(ct, str):
+                ct_string = ct
+            elif isinstance(ct, dict):
+                # Handle nested format from Nautobot API
+                app_label = ct.get('app_label', '')
+                model = ct.get('model', '')
+                ct_string = f"{app_label}.{model}"
+
+            if ct_string:
+                mapped = self.CONTENT_TYPE_MAP.get(ct_string)
+                if mapped:
+                    netbox_content_types.append(mapped)
+                else:
+                    unmapped_types.append(ct_string)
+                    # Try direct mapping if not in our map (NetBox may accept it)
+                    netbox_content_types.append(ct_string)
+
+        if unmapped_types:
+            logger.warning(f"Unmapped content types for {nautobot_obj.get('name')}: {unmapped_types}")
+
+        if netbox_content_types:
+            data['object_types'] = netbox_content_types
+        else:
+            # Default to dcim.device if no content types specified
+            # NetBox 4.x requires at least one
+            logger.warning(f"No content types for {nautobot_obj.get('name')}, defaulting to dcim.device")
+            data['object_types'] = ['dcim.device']
+
+        # For select/multiselect, link the choice_set (required in NetBox 4.x)
+        if cf_type in ('select', 'multi-select'):
+            field_name = nautobot_obj.get('name')
+            # Use provided choice_set_id or look up from stored IDs
+            cs_id = choice_set_id or self.choice_set_ids.get(field_name)
+            if cs_id:
+                data['choice_set'] = cs_id
 
         # Filter logic (display conditions)
         if nautobot_obj.get('filter_logic'):
@@ -131,6 +193,7 @@ class CustomFieldMapper(BaseMapper):
         """Extract choice set for select/multiselect fields.
 
         NetBox 4.x requires separate CustomFieldChoiceSet objects.
+        Must be created BEFORE the custom field.
         """
         cf_type = nautobot_obj.get('type', 'text')
         if isinstance(cf_type, dict):
