@@ -109,6 +109,10 @@ class MigrationRunner:
             'failed': {},
         }
 
+        # Track failure details for summary
+        # Format: {'object_type': [{'name': 'obj1', 'error': 'reason'}, ...]}
+        self.failure_details = {}
+
     def test_connections(self) -> bool:
         """Test connections to both Nautobot and NetBox."""
         logger.info("Testing connections...")
@@ -274,6 +278,7 @@ class MigrationRunner:
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate custom field {nb_cf.get('name')}: {e}")
+                self._track_failure('custom_fields', nb_cf.get('name', 'unknown'), e)
                 failed += 1
                 if not self.continue_on_error:
                     raise
@@ -652,6 +657,7 @@ class MigrationRunner:
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate prefix {nb_prefix.get('prefix')}: {e}")
+                self._track_failure('prefixes', nb_prefix.get('prefix', 'unknown'), e)
                 failed += 1
 
         self._update_stats('prefixes', created, skipped, failed)
@@ -679,6 +685,7 @@ class MigrationRunner:
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate device {nb_device.get('name')}: {e}")
+                self._track_failure('devices', nb_device.get('name', 'unknown'), e)
                 failed += 1
 
         self._update_stats('devices', created, skipped, failed)
@@ -729,6 +736,7 @@ class MigrationRunner:
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate interface {nb_iface.get('name')}: {e}")
+                self._track_failure('interfaces', nb_iface.get('name', 'unknown'), e)
                 failed += 1
 
         # First pass: Create LAG interfaces
@@ -785,6 +793,7 @@ class MigrationRunner:
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate IP address {nb_ip.get('address')}: {e}")
+                self._track_failure('ip_addresses', nb_ip.get('address', 'unknown'), e)
                 failed += 1
 
         self._update_stats('ip_addresses', created, skipped, failed)
@@ -800,7 +809,8 @@ class MigrationRunner:
                 data = mapper.transform(nb_cable)
                 # Skip if terminations couldn't be resolved
                 if 'a_terminations' not in data or 'b_terminations' not in data:
-                    skipped += 1
+                    self._track_failure('cables', nb_cable.get('id', 'unknown'), 'Terminations could not be resolved (interface not migrated)')
+                    failed += 1
                     continue
 
                 result = self.netbox.create_cable(data)
@@ -809,6 +819,7 @@ class MigrationRunner:
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate cable {nb_cable.get('id')}: {e}")
+                self._track_failure('cables', nb_cable.get('id', 'unknown'), e)
                 failed += 1
 
         self._update_stats('cables', created, skipped, failed)
@@ -840,6 +851,7 @@ class MigrationRunner:
                             logger.warning(f"Failed to update VC member: {e}")
             except Exception as e:
                 logger.error(f"Failed to migrate virtual chassis {nb_vc.get('name')}: {e}")
+                self._track_failure('virtual_chassis', nb_vc.get('name', 'unknown'), e)
                 failed += 1
 
         self._update_stats('virtual_chassis', created, skipped, failed)
@@ -878,6 +890,14 @@ class MigrationRunner:
         self.stats['failed'][obj_type] = failed
         logger.info(f"  {obj_type}: {created} created, {skipped} skipped, {failed} failed")
 
+    def _track_failure(self, obj_type: str, name: str, error: str):
+        """Track a failure for the summary."""
+        if obj_type not in self.failure_details:
+            self.failure_details[obj_type] = []
+        # Keep only first 10 failures per type to avoid huge output
+        if len(self.failure_details[obj_type]) < 10:
+            self.failure_details[obj_type].append({'name': name, 'error': str(error)[:200]})
+
     def _print_summary(self, duration):
         """Print migration summary."""
         print("\n" + "=" * 60)
@@ -901,6 +921,21 @@ class MigrationRunner:
             failed = self.stats['failed'].get(obj_type, 0)
             if created or skipped or failed:
                 print(f"  {obj_type:20} | {created:5} created | {skipped:5} skipped | {failed:5} failed")
+
+        # Print failure details
+        if self.failure_details:
+            print("\n" + "=" * 60)
+            print("FAILURE DETAILS (first 10 per type)")
+            print("=" * 60)
+            for obj_type in self.MIGRATION_ORDER:
+                failures = self.failure_details.get(obj_type, [])
+                if failures:
+                    print(f"\n{obj_type}:")
+                    for f in failures:
+                        print(f"  - {f['name']}: {f['error']}")
+                    total_failures = self.stats['failed'].get(obj_type, 0)
+                    if total_failures > 10:
+                        print(f"  ... and {total_failures - 10} more failures")
 
         print("\nID mapping summary:")
         for obj_type, count in self.id_mapper.summary().items():
