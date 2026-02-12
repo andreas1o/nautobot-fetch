@@ -4,9 +4,9 @@ all:
     NETBOX:
       hosts:
         netbox:
-          ansible_host: netbox.example.com
-          netbox_url: "https://netbox.example.com"
-          netbox_api_token: "your-api-token-here"
-          netbox_validate_certs: true
+          ansible_host: localhost
+          netbox_url: "http://localhost:8000"
+          netbox_api_token: "bac5db97d3bc2b21378e84bfb8222c120b4315af"
+          netbox_validate_certs: false
     CVP:
       hosts:

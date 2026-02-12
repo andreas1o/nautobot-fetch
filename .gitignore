@@ -45,3 +45,6 @@ group_vars/
 
 # Ansible
 *.retry
+inventory.yml
+host_vars/advania_nautbot.yml
+host_vars/nautobot.yml

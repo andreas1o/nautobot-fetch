@@ -642,6 +642,12 @@ class MigrationRunner:
         """Migrate prefixes."""
         mapper = PrefixMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_prefixes = self.nautobot.get_prefixes()
+        existing_prefixes = {}
+        for prefix in self.netbox.get_prefixes():
+            vrf = prefix.get('vrf')
+            vrf_id = vrf.get('id') if isinstance(vrf, dict) and vrf else vrf
+            key = (prefix.get('prefix'), vrf_id)
+            existing_prefixes[key] = prefix
 
         created, skipped, failed = 0, 0, 0
         for nb_prefix in nautobot_prefixes:
@@ -651,9 +657,16 @@ class MigrationRunner:
                     skipped += 1
                     continue
 
+                key = (data.get('prefix'), data.get('vrf'))
+                if key in existing_prefixes:
+                    self.id_mapper.add('prefix', nb_prefix['id'], existing_prefixes[key]['id'])
+                    skipped += 1
+                    continue
+
                 result = self.netbox.create_prefix(data)
                 if result:
                     mapper.register_mapping(nb_prefix['id'], result['id'])
+                    existing_prefixes[key] = result
                     created += 1
             except Exception as e:
                 logger.error(f"Failed to migrate prefix {nb_prefix.get('prefix')}: {e}")
@@ -802,6 +815,11 @@ class MigrationRunner:
         """Migrate cables."""
         mapper = CableMapper(self.id_mapper, self.custom_field_mapping)
         nautobot_cables = self.nautobot.get_cables()
+        existing_cables = {}
+        for cable in self.netbox._get('dcim/cables'):
+            term_key = self._get_cable_termination_key(cable)
+            if term_key:
+                existing_cables[term_key] = cable
 
         created, skipped, failed = 0, 0, 0
         for nb_cable in nautobot_cables:
@@ -813,11 +831,23 @@ class MigrationRunner:
                     failed += 1
                     continue
 
+                term_key = self._get_cable_termination_key(data)
+                if term_key and term_key in existing_cables:
+                    self.id_mapper.add('cable', nb_cable['id'], existing_cables[term_key]['id'])
+                    skipped += 1
+                    continue
+
                 result = self.netbox.create_cable(data)
                 if result:
                     mapper.register_mapping(nb_cable['id'], result['id'])
+                    if term_key:
+                        existing_cables[term_key] = result
                     created += 1
             except Exception as e:
+                err = str(e)
+                if 'Duplicate termination found' in err:
+                    skipped += 1
+                    continue
                 logger.error(f"Failed to migrate cable {nb_cable.get('id')}: {e}")
                 self._track_failure('cables', nb_cable.get('id', 'unknown'), e)
                 failed += 1
@@ -828,14 +858,22 @@ class MigrationRunner:
         """Migrate virtual chassis."""
         mapper = VirtualChassisMapper(self.id_mapper, self.custom_field_mapping, self.valid_custom_fields_by_type)
         nautobot_vcs = self.nautobot.get_virtual_chassis()
+        existing_vcs = {vc.get('name'): vc for vc in self.netbox._get('dcim/virtual-chassis')}
 
         created, skipped, failed = 0, 0, 0
         for nb_vc in nautobot_vcs:
             try:
+                vc_name = nb_vc.get('name')
+                if vc_name in existing_vcs:
+                    self.id_mapper.add('virtual_chassis', nb_vc['id'], existing_vcs[vc_name]['id'])
+                    skipped += 1
+                    continue
+
                 data = mapper.transform(nb_vc)
                 result = self.netbox.create_virtual_chassis(data)
                 if result:
                     mapper.register_mapping(nb_vc['id'], result['id'])
+                    existing_vcs[vc_name] = result
                     created += 1
 
                     # Update member devices
@@ -897,6 +935,21 @@ class MigrationRunner:
         # Keep only first 10 failures per type to avoid huge output
         if len(self.failure_details[obj_type]) < 10:
             self.failure_details[obj_type].append({'name': name, 'error': str(error)[:200]})
+
+    @staticmethod
+    def _get_cable_termination_key(cable_data: Dict) -> Optional[frozenset]:
+        """Create an order-independent key for cable terminations."""
+        a_terms = cable_data.get('a_terminations') or []
+        b_terms = cable_data.get('b_terminations') or []
+        if not a_terms or not b_terms:
+            return None
+
+        a = a_terms[0]
+        b = b_terms[0]
+        return frozenset({
+            (a.get('object_type'), a.get('object_id')),
+            (b.get('object_type'), b.get('object_id')),
+        })
 
     def _print_summary(self, duration):
         """Print migration summary."""

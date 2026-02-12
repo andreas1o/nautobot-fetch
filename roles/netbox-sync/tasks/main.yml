@@ -13,6 +13,7 @@
       query: '{{ lookup("template", "roles/netbox-sync/templates/mlag_pairs.graphql") }}'
   register: netbox_mlag_pairs_query
   run_once: true
+  check_mode: no
   tags:
     - always
 
@@ -39,6 +40,7 @@
       query: '{{ lookup("template", "roles/netbox-sync/templates/mlag_pairs_subleafs.graphql") }}'
   register: netbox_subleaf_mlag_pairs_query
   run_once: true
+  check_mode: no
   tags:
     - always
 
@@ -65,6 +67,7 @@
       query: '{{ lookup("template", "roles/netbox-sync/templates/standalone_leafs.graphql") }}'
   register: netbox_standalone_leafs_query
   run_once: true
+  check_mode: no
   tags:
     - always
 
@@ -92,6 +95,7 @@
       query: '{{ lookup("template", "roles/netbox-sync/templates/spines.graphql") }}'
   register: netbox_spines_query
   run_once: true
+  check_mode: no
   tags:
     - always
 
@@ -119,6 +123,7 @@
       query: '{{ lookup("template", "roles/netbox-sync/templates/sites.graphql") }}'
   register: netbox_sites_query
   run_once: true
+  check_mode: no
   tags:
     - always
 
@@ -146,6 +151,7 @@
       query: '{{ lookup("template", "roles/netbox-sync/templates/evpn_route_servers.graphql") }}'
   register: netbox_route_servers_query
   run_once: true
+  check_mode: no
   tags:
     - always
 
@@ -173,6 +179,7 @@
       query: '{{ lookup("template", "roles/netbox-sync/templates/network_services_advanced.graphql") }}'
   register: netbox_network_services_query
   run_once: true
+  check_mode: no
   tags:
     - always
 
@@ -196,6 +203,7 @@
       Authorization: 'Token {{ netbox_api_token }}'
   register: netbox_config_contexts_query
   run_once: true
+  check_mode: no
   delegate_to: localhost
   tags:
     - always
@@ -203,7 +211,7 @@
 
 - name: Set config contexts fact
   set_fact:
-    nb_config_contexts: "{{ netbox_config_contexts_query.json.results }}"
+    nb_config_contexts: "{{ (netbox_config_contexts_query.json.results if (netbox_config_contexts_query is defined and netbox_config_contexts_query.json is defined) else []) }}"
   run_once: true
   tags:
     - always

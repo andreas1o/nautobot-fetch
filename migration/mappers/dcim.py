@@ -90,6 +90,9 @@ class SiteMapper(BaseMapper):
 
         # Custom fields
         custom_fields = self._transform_custom_fields(nautobot_obj)
+        # Some environments define virtual-chassis evpn_role choices differently.
+        # Drop this field to keep VC migration idempotent across target schemas.
+        custom_fields.pop('evpn_role', None)
         if custom_fields:
             data['custom_fields'] = custom_fields
 
