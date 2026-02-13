@@ -82,8 +82,10 @@
 {# Scan through config contexts to find route-map definitions and extract their dependencies #}
 {% if nb_config_contexts is defined and nb_config_contexts is not none %}
 {%     for context in nb_config_contexts %}
-{%         if context.value.tenants | length > 0 and ("AVD" in context.value.tags or "avd" in context.value.tags) and "routing_policy" in context.value.tags %}
-{%             set data = context.value.data %}
+{%         set context_value = context.value | default({}) %}
+{%         set context_tags = context_value.tags | default([]) %}
+{%         if context_value.tenants | default([]) | length > 0 and ("AVD" in context_tags or "avd" in context_tags) and "routing_policy" in context_tags %}
+{%             set data = context_value.data | default({}) %}
 {%             if data.route_maps is defined %}
 {%                 for route_map_name, route_map_config in data.route_maps.items() %}
 {%                     if route_map_name in services_data.referenced_route_maps %}
@@ -107,8 +109,10 @@
     } %}
 {% if nb_config_contexts is defined and nb_config_contexts is not none %}
 {%     for context in nb_config_contexts %}
-{%         if context.value.tenants | length > 0 and ("AVD" in context.value.tags or "avd" in context.value.tags) and "routing_policy" in context.value.tags %}
-{%             set data = context.value.data %}
+{%         set context_value = context.value | default({}) %}
+{%         set context_tags = context_value.tags | default([]) %}
+{%         if context_value.tenants | default([]) | length > 0 and ("AVD" in context_tags or "avd" in context_tags) and "routing_policy" in context_tags %}
+{%             set data = context_value.data | default({}) %}
 {%             for key, value in data.items() %}
 {%                 if key in services_data.routing_policy %}
 {%                     if key == "route_maps" %}
