@@ -39,7 +39,7 @@ avd_fabric_defaults:
       non_mlag: 600
 
 # Name must match site name in nautobot
-DC1:
+DC1: &DC1_PROFILE
   dc_defaults:
   spine:
     defaults:
@@ -114,7 +114,7 @@ DC1:
     defaults: false
 
 # Name must match site name in nautobot
-DC2:
+DC2: &DC2_PROFILE
   dc_defaults:
   spine:
     defaults:
@@ -173,3 +173,7 @@ DC2:
 
   l2leaf:
     defaults: false
+
+# NetBox site-name aliases used by migrated data.
+dja: *DC1_PROFILE
+sat: *DC2_PROFILE

@@ -1,0 +1,219 @@
+---
+######### Retrieve MLAG Pairs from NetBox ###############
+- name: Get NetBox mlag pairs
+  uri:
+    url: "{{ netbox_url }}/graphql/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/netbox-sync/templates/mlag_pairs.graphql") }}'
+  register: netbox_mlag_pairs_query
+  run_once: true
+  check_mode: no
+  tags:
+    - always
+
+- name: Set mlag_pairs fact
+  set_fact:
+    nb_mlag_pairs:
+      virtual_chassis: "{{ netbox_mlag_pairs_query.json.data.virtual_chassis_list | default([]) | emil.nbavd.netbox_compat('virtual_chassis') }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+######### Retrieve subleaf MLAG Pairs from NetBox ###############
+- name: Get NetBox subleaf mlag pairs
+  uri:
+    url: "{{ netbox_url }}/graphql/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/netbox-sync/templates/mlag_pairs_subleafs.graphql") }}'
+  register: netbox_subleaf_mlag_pairs_query
+  run_once: true
+  check_mode: no
+  tags:
+    - always
+
+- name: Set subleaf_mlag_pairs fact
+  set_fact:
+    nb_subleaf_mlag_pairs:
+      virtual_chassis: "{{ netbox_subleaf_mlag_pairs_query.json.data.virtual_chassis_list | default([]) | emil.nbavd.netbox_compat('virtual_chassis') }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+######### Retrieve Standalone Leafs from NetBox #########
+- name: Get NetBox standalone leafs
+  uri:
+    url: "{{ netbox_url }}/graphql/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/netbox-sync/templates/standalone_leafs.graphql") }}'
+  register: netbox_standalone_leafs_query
+  run_once: true
+  check_mode: no
+  tags:
+    - always
+
+- name: Set standalone leafs fact
+  set_fact:
+    nb_standalone_leafs:
+      devices: "{{ netbox_standalone_leafs_query.json.data.device_list | default([]) | emil.nbavd.netbox_compat('devices') }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve Spines from NetBox ###################
+- name: Get NetBox spines
+  uri:
+    url: "{{ netbox_url }}/graphql/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/netbox-sync/templates/spines.graphql") }}'
+  register: netbox_spines_query
+  run_once: true
+  check_mode: no
+  tags:
+    - always
+
+- name: Set spines fact
+  set_fact:
+    nb_spines:
+      devices: "{{ netbox_spines_query.json.data.device_list | default([]) | emil.nbavd.netbox_compat('devices') }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve Sites list from NetBox ###############
+- name: Get NetBox sites list
+  uri:
+    url: "{{ netbox_url }}/graphql/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/netbox-sync/templates/sites.graphql") }}'
+  register: netbox_sites_query
+  run_once: true
+  check_mode: no
+  tags:
+    - always
+
+- name: Set sites fact
+  set_fact:
+    nb_sites:
+      sites: "{{ netbox_sites_query.json.data.site_list | default([]) | emil.nbavd.netbox_compat('sites') }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve EPVN Route-servers from NetBox #######
+- name: Get NetBox evpn route-servers list
+  uri:
+    url: "{{ netbox_url }}/graphql/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/netbox-sync/templates/evpn_route_servers.graphql") }}'
+  register: netbox_route_servers_query
+  run_once: true
+  check_mode: no
+  tags:
+    - always
+
+- name: Set route_servers fact
+  set_fact:
+    nb_route_servers:
+      devices: "{{ netbox_route_servers_query.json.data.device_list | default([]) | emil.nbavd.netbox_compat('devices') }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+
+######### Retrieve Network Services from NetBox #########
+- name: Get NetBox network services info
+  uri:
+    url: "{{ netbox_url }}/graphql/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: POST
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+    body_format: json
+    body:
+      query: '{{ lookup("template", "roles/netbox-sync/templates/network_services_advanced.graphql") }}'
+  register: netbox_network_services_query
+  run_once: true
+  check_mode: no
+  tags:
+    - always
+
+- name: Set network services fact
+  set_fact:
+    nb_network_services:
+      tenants: "{{ netbox_network_services_query.json.data.tenant_list | default([]) | emil.nbavd.netbox_compat('tenants') }}"
+  run_once: true
+  tags:
+    - always
+###########################################################
+
+######### Retrieve Config Contexts from NetBox ##########
+- name: Obtain list of config contexts from NetBox
+  uri:
+    url: "{{ netbox_url }}/api/extras/config-contexts/"
+    validate_certs: "{{ netbox_validate_certs | default(true) }}"
+    method: GET
+    timeout: 120
+    headers:
+      Authorization: 'Token {{ netbox_api_token }}'
+  register: netbox_config_contexts_query
+  run_once: true
+  check_mode: no
+  delegate_to: localhost
+  tags:
+    - always
+    - contexts
+
+- name: Set config contexts fact
+  set_fact:
+    nb_config_contexts: "{{ (netbox_config_contexts_query.json.results if (netbox_config_contexts_query is defined and netbox_config_contexts_query.json is defined) else []) }}"
+  run_once: true
+  tags:
+    - always
+    - contexts
+###########################################################

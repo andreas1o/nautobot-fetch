@@ -1,30 +1,71 @@
-# Nautobot as AVD Source of Truth
+# Nautobot / NetBox as AVD Source of Truth
 
-This project is meant to provide a modeling convention for Networktocode's Nautobot application as well as ansible roles to retrieve Nautobot data and render it into a yaml data model which can be consumed by Arista's ansible.avd collection to build a l3ls EVPN-VXLAN fabric.
-
-## Modeling Conventions
-
-The modeling conventions are described in a separate document included in this repo.
+This project provides modeling conventions and Ansible roles to use either **Nautobot** or **NetBox** as the source of truth, then render data into a YAML model consumed by Arista's `arista.avd` collection to build an L3LS EVPN-VXLAN fabric.
 
 ## Repository Contents
 
 ### Ansible Roles
 
-The included roles are described briefly here, refer to the individual role README file for more information.
+| Role | Description |
+|------|-------------|
+| **nautobot-sync** | Posts GraphQL queries to Nautobot and registers results for the avdbuilder role. |
+| **netbox-sync** | Fetches data from NetBox (GraphQL + REST), normalizes it for avdbuilder. |
+| **avdbuilder** | Renders YAML group_vars for an AVD fabric from data provided by nautobot-sync or netbox-sync. |
 
-#### nautobot-sync
-
-This ansible role simply posts graphql queries to Nautobot and registers the returned results to variables so it can be used by the avdbuilder role.
-
-#### avdbuilder
-
-This ansible role uses the data fetched by nautobot-sync to render yaml files which can be used as group_vars for an AVD fabric.
+Refer to each role’s README for details.
 
 ### Custom Filters
 
-The emil.nbavd.structure_tenants filter is included in this repository and is required for the avdbuilder role to run.
+The `emil.nbavd` filters (e.g. `structure_tenants`, `netbox_compat`) are included and required for the avdbuilder role.
 
-## Example Playbook
+### Migration Tool (Nautobot → NetBox)
+
+The `migration/` directory contains a Python script that migrates data from Nautobot to NetBox. It runs **before** you use NetBox as the source of truth.
+
+- **Custom fields**: The script **creates custom fields in NetBox automatically** from your Nautobot custom fields (including object types and choice sets for selection fields). You do **not** need to create them manually in NetBox.
+- **Other objects**: Tags, sites, devices, interfaces, VLANs, VRFs, prefixes, cables, virtual chassis, config contexts, etc. are migrated in dependency order.
+
+Run from the project root:
+
+```bash
+cd migration
+cp config.yaml.example config.yaml
+# Edit config.yaml with Nautobot and NetBox URLs and tokens
+python migrate.py --config config.yaml --dry-run   # optional
+python migrate.py --config config.yaml
+```
+
+After a successful migration, use the NetBox inventory and playbook below to generate AVD from NetBox.
+
+## Modeling Conventions
+
+Conventions for modeling data in Nautobot are described in **Nautobot Modelling Conventions.md**. The same logical fields (e.g. `evpn_role`, `bgp_asn`, `device_id`, `ospf_enabled`, `ip_helpers`, `next_hop`, etc.) are used when running from NetBox; the migration script ensures they exist in NetBox with the right types and object assignments.
+
+## Example Playbooks
+
+### Using NetBox
+
+```yaml
+---
+- hosts: netbox
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run netbox-sync
+      import_role:
+        name: netbox-sync
+
+- hosts: netbox
+  tasks:
+    - name: Run avdbuilder
+      import_role:
+        name: avdbuilder
+      vars:
+        fabric_name: TEST-FABRIC
+        site_names: ["dja", "sat"]   # must match site names in NetBox
+```
+
+### Using Nautobot
 
 ```yaml
 ---
@@ -48,6 +89,25 @@ The emil.nbavd.structure_tenants filter is included in this repository and is re
 
 ## Example Inventory
 
+### NetBox
+
+```yaml
+---
+all:
+  children:
+    NETBOX:
+      hosts:
+        netbox:
+          ansible_host: localhost
+          netbox_url: "http://localhost:8000"
+          netbox_api_token: "<your-netbox-api-token>"
+          netbox_validate_certs: false
+```
+
+Use host vars for the `netbox` host (e.g. `host_vars/netbox.yml`) with `avd_fabric_defaults` and per-site DC/spine/leaf defaults; site keys should match NetBox site names.
+
+### Nautobot
+
 ```yaml
 ---
 all:
@@ -56,43 +116,45 @@ all:
       hosts:
         nautobot:
           ansible_host: 10.10.10.10
-          api_token: "<your api-token here>"
+          api_token: "<your-api-token>"
 ```
 
 ## Requirements and Dependencies
 
 ### Ansible
 
-These roles have been tested with ansible-core 2.12.0.
+Tested with ansible-core 2.12+.
 
 ### AVD
 
-Although the roles provided in this repository are not dependent on AVD, their output is fairly useless without it. The recommendation is to install via ansible galaxy:
+Install the Arista AVD collection:
 
 ```shell
 ansible-galaxy collection install arista.avd
+ansible-galaxy collection install ansible.utils
 ```
 
-The roles are meant to work with the AVD version 3.x data model.
+The roles output the AVD v3/v4 data model.
 
-### Nautobot Version
+### Source platform
 
-The roles have been tested with nautobot==v1.1.2
+- **Nautobot**: Tested with Nautobot v1.1.2 and later. The custom fields described in the modeling conventions document must exist in Nautobot (or be created there first). A Nautobot restart can be needed before new custom fields appear in the GraphQL API.
+- **NetBox**: Tested with NetBox 4.2.x. When using the migration tool, custom fields are created in NetBox automatically; no manual creation is required.
 
-The custom fields that have been outlined in the modeling conventions doc need to be present, or the graphql queries posted by the nautobot-sync role will fail. It has been observed that sometimes a nautobot restart is required before the custom fields become available in the graphql API.
+### Python (for migration)
 
-### Additional Collections/Modules
+For the Nautobot→NetBox migration script:
 
-#### Python Packages
+```shell
+pip install -r requirements.txt
+```
 
-pynautobot is required
+Includes `pynautobot`, `pynetbox`, `requests`, `pyyaml`, etc.
 
-#### Ansible Collections
+### Ansible collections (Nautobot path)
 
-networktocode.nautobot is required for grabbing custom configuration contexts via the API (not available through graphql API at the moment)
+For config contexts when using Nautobot:
 
 ```shell
 ansible-galaxy collection install networktocode.nautobot
 ```
-
-
